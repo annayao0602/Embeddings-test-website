@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<html>
+
+<head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+    <script src="https://unpkg.com/d3fc"></script>
+    <title>Embeddings Scatterplot</title>
+    <link href='https://fonts.googleapis.com/css?family=Inria+Serif' rel='stylesheet'>
+
+</head>
+<style> 
+    html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden; 
+        font-family: 'Inria Serif', sans-serif;
+        background-color: #f9f9f9;
+        font-size: 14px;
+        color: #002E63;
+    }
+    #my_scatter {
+        width: 60%;
+        height: 85%;
+    }
+    .tooltip {	
+        position: absolute;			
+        text-align: left;			
+        width: 250px;					
+        height: auto;					
+        padding: 10px;				
+        font: 12px 'Inria Serif', sans-serif;		
+        background: white;	
+        border: 1px solid #ccc;		
+        border-radius: 8px;			
+        pointer-events: none;			
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        opacity: 0;
+        color: #002E63;
+    }
+    .card {
+        padding: 0px;
+        min-height:0;
+        font-family: 'Inria Serif';
+        border-radius: 15px;
+    }
+    .scatter_container {
+        display: flex;
+        height: 100vh;
+        width: 100vw;
+    }
+    #panel {
+        width: 40%;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 10px;
+        box-sizing: border-box;
+    }
+    #color-mode-select {
+        font-family: 'Inria Serif';
+        font-size: 14px;
+        cursor: pointer;
+    }
+    .inactive-highlight {
+        text-decoration: line-through;
+        opacity: 0.5;
+    }
+    #options {
+        display: flex;
+        flex-direction: row;
+        gap: 120px;
+    }
+    #kde-control a {
+        font-family: 'Inria Serif';
+        cursor: pointer;
+    }
+    #kde-button:hover {
+        scale: 1.1;
+    }
+    #scatterplot-button:hover {
+        scale: 1.1;
+        background-color: #d6d6d6;
+        transition: background-color 0.3s ease-in-out;
+    }
+    #about-button:hover {
+        scale: 1.1;
+        background-color: #d6d6d6;
+        transition: background-color 0.3s ease-in-out;
+    }
+    #kdeplot-button:hover {
+        scale: 1.1;
+        background-color: #d6d6d6;
+        transition: background-color 0.3s ease-in-out;
+    }
+    #header-container {
+        display: flex;
+        justify-content: flex-start;
+        align-items: center;
+        gap: 15px;
+    }
+    #outer-header-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px;
+        margin-right: 20px;
+    }
+    #buttons {
+        display: flex;
+        gap: 40px;
+    }
+    #color-mode-control {
+        font-size: 16px;
+    }
+    #color-mode-select {
+        font-size: 16px;
+        color: #002E63;
+    }
+    
+
+</style>
+<body>
+    <div id = outer-header-container>
+        <div id = 'header-container'>
+            <div id = "logo">
+                <img src="cdh.png" alt="CDH Logo" width="70px" height="80px">
+            </div>
+            <div class = "header">
+                <h1>uva research insights scatterplot</h1>
+            </div>
+        </div>
+        <div id = 'buttons'>
+            <div id = 'kdeplot-button'>
+                <a href = "kdeplot.html" style="text-decoration: none; color: #002E63; font-size: 18px;">
+                    <p>kde plot</p>
+                </a>
+            </div>
+            <div id = 'scatterplot-button'>
+                <a href = "scatterplot.html" style="text-decoration: none; color: #002E63; font-size: 18px;">
+                    <p>scatterplot</p>
+                </a>
+            </div>
+            <div id = 'about-button'>
+                <a href = "about.html" style="text-decoration: none; color: #002E63; font-size: 18px">
+                    <p>about</p>
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class = "scatter_container">
+        <div id="my_scatter"></div>
+        <div id = "panel">
+            <div id = "controls" class = "card">
+                <div id = "options">
+                    <div id = "color-mode-control">
+                        <label for="color-mode-select">color mode:</label>
+                        <select id="color-mode-select">
+                            <option value="direct sponsor" selected>direct sponsor</option>
+                            <option value="awarded">awarded or not</option>
+                            <option value="amount">amount awarded</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div id = "legend" class = "card">
+                <h2>legend</h2>
+            </div>
+            <div id = "info" class = "card">
+                <h2>information</h2>
+                <p>click on a point in the scatterplot to see more information about the corresponding proposal.</p>
+                <p>use mouse scroll to zoom in and out. click and drag to pan.</p>
+                <p>hover over a point to see the proposal title, pi, and direct sponsor category.</p>
+            </div>
+            
+        </div>
+    </div>
+
+    <script type = module>
+
+        import { updateLegend } from './updateLegend.js';
+
+        //----D3FC version with WebGL ----
+        d3.text("proposals_with_embeddings_full_updated.json").then(function(text) {
+            const lines = text.trim().split('\n');
+
+            const data = lines.map(line => {
+                const { Title, 'Proposal PI' : ProposalPI, 'Proposal Direct Sponsor Category' : ProposalDirectSponsorCategory, 'HURON Authorized Amount' : HURONAuthorizedAmount, umap_x, umap_y } = JSON.parse(line);
+                return { Title, 'Proposal PI': ProposalPI,  'Proposal Direct Sponsor Category' : ProposalDirectSponsorCategory ?? 'No Direct Sponsor', 'HURON Authorized Amount' : +HURONAuthorizedAmount ?? 0, umap_x: +umap_x, umap_y: +umap_y };
+            });
+            
+
+            const getSponsorCategory = (d) => {
+                const originalCategory = d['Proposal Direct Sponsor Category'].toLowerCase();
+                
+                const otherCategories = [
+                    'foundation',
+                    'local government',
+                    'foreign government',
+                    'other state governments',
+                    'mc',
+                    'no direct sponsor',
+                    'foreign foundation',
+                    'foreign higher education institutions',
+                    'virginia state higher education institutions',
+                    'foreign industry'
+                ];
+                
+                if (otherCategories.includes(originalCategory)) {
+                    return 'other';
+                }
+                return originalCategory;
+            };
+
+            const getAwardedStatus = (d) => {
+                return +d['HURON Authorized Amount'] > 0 ? 'Awarded' : 'Not Awarded';
+            }
+
+            const x = d3.scaleLinear()
+            const y = d3.scaleLinear()
+            x.domain([0, 24]).nice();
+            y.domain([-5,15]).nice();
+
+            const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
+            let colorMode = 'direct sponsor';
+            const amountExtent = d3.extent(data, d => d['HURON Authorized Amount']); 
+            const amountColorScale = d3.scaleSequentialLog(d3.interpolateGnBu)
+                .domain([1, amountExtent[1]]);
+            
+
+            let fillColor;
+            let scatter;
+            let highlightedCategories = [];
+            let showKDE = false;
+
+            const toggleCategoryHighlight = (category) => {
+                const index = highlightedCategories.indexOf(category);
+                
+                if (index === -1) {
+                    highlightedCategories.push(category);
+                } else {
+                    highlightedCategories.splice(index, 1);
+                }
+
+                updateChart();
+                updateLegend(data, colorMode, getSponsorCategory, getAwardedStatus, colorScale, amountColorScale, amountExtent, highlightedCategories, toggleCategoryHighlight);
+                render();
+            };
+
+            const tooltip = d3.select("body").append("div").attr("class", "tooltip");
+
+            const informationOverlay = fc
+                .seriesSvgPoint()
+                .type(d3.symbolCircle)
+                .size(30)
+                .xScale(x)
+                .yScale(y)
+                .crossValue(d => d.umap_x)
+                .mainValue(d => d.umap_y)
+                .decorate(selection => {
+                    selection.style("cursor", "pointer");
+
+                    selection.select('path')
+                        .style('fill', 'transparent')
+                        .style('stroke', 'transparent')
+                        .style('stroke-width', 0.8);
+                    selection
+                        .on('mouseover', (event, d) => {
+                            d3.select(event.currentTarget)
+                                .select('path')
+                                .style('stroke', 'black')
+                                .style('stroke-opacity', 1);
+                            tooltip.style("opacity", 0.83);
+
+                            const scatterContainer = document.getElementById('my_scatter');
+                            const rect = scatterContainer.getBoundingClientRect();
+                            const scatterMidpoint = rect.left + rect.width / 2;
+                            const tooltipWidth = 250; 
+                            
+                            let xPosition;
+                            let yPosition = event.pageY - 20; 
+
+                            if (event.pageX > scatterMidpoint) {
+                                xPosition = event.pageX - tooltipWidth - 30;
+                            } else {
+                                xPosition = event.pageX + 15;
+                            }
+                            
+                            tooltip.html(`<strong>title</strong>: ${d.Title} <br> <strong>pi</strong>: ${d['Proposal PI']} <br> <strong>direct sponsor</strong>: ${d['Proposal Direct Sponsor Category']}`)
+                                .style("left", xPosition + "px")
+                                .style("top", yPosition + "px");
+                        })
+                        .on('mouseout', (event, d) => {
+                            d3.select(event.currentTarget)
+                                .select('path')
+                                .style('stroke-opacity', 0);
+                            tooltip.style("opacity", 0);
+                        })
+                        .on('click', (event, d) => {
+                            d3.select("#info").html(`
+                                <h2>proposal information</h2>
+                                <p><strong>title:</strong> ${d.Title}</p>
+                                <p><strong>pi:</strong> ${d['Proposal PI']}</p>
+                                <p><strong>direct sponsor category:</strong> ${d['Proposal Direct Sponsor Category']}</p>
+                                <p><strong>huron authorized amount:</strong> $${d['HURON Authorized Amount']}</p>
+                            `);
+                        });
+                });
+
+            const chart = fc
+                .chartCartesian(x, y)
+                .svgPlotArea(informationOverlay)
+                .xTickFormat(() => "")
+                .yTickFormat(() => "");
+                //.xDecorate(s => s.style('display', 'none'))
+                //.yDecorate(s => s.style('display', 'none'));
+            
+            const updateChart = (displayData) => {
+                fillColor = fc
+                    .webglFillColor()
+                    .value(d => {
+                        if (colorMode === 'direct sponsor') {
+                            const category = getSponsorCategory(d);
+                            const color = d3.color(colorScale(category));
+                            return [color.r / 255, color.g / 255, color.b / 255, 0.94]; 
+                        }
+                        else if (colorMode === 'awarded') {
+                            return +d['HURON Authorized Amount'] > 0 ? [0.1, 0.6, 0.9, 1.0] : [0.6, 0.45, 0.3, 1.0]; 
+                        }
+                        else if (colorMode === 'amount') {
+                            const amount = +d['HURON Authorized Amount'];
+                            if (amount <= 0) {
+                                return [0.39, 0.39, 0.39, 0.6]; 
+                            }
+                            const logAmount = Math.log10(+d['HURON Authorized Amount']); 
+                            const color = d3.color(amountColorScale(amount));
+                            return [color.r / 255, color.g / 255, color.b / 255, 1.0];
+                        }                   
+                    })  
+                .data(displayData);
+
+                scatter = fc
+                    .seriesWebglPoint()
+                    .type(d3.symbolCircle)
+                    .size(30)
+                    .xScale(x)
+                    .yScale(y)
+                    .crossValue(d => d.umap_x)
+                    .mainValue(d => d.umap_y)
+                    .decorate(program => {
+                        fillColor(program);
+                        const context = program.context();
+                        context.enable(context.BLEND);
+                        context.blendFunc(context.SRC_ALPHA, context.ONE_MINUS_SRC_ALPHA);
+                    })
+                
+                chart.webglPlotArea(scatter);
+            }
+                
+
+            const render = () => {
+                let displayData = data;
+                if (colorMode === 'direct sponsor' && highlightedCategories.length > 0) {
+                    displayData = data.filter(d => highlightedCategories.includes(getSponsorCategory(d)));
+                }
+                if (colorMode === 'awarded' && highlightedCategories.length > 0) {
+                    displayData = data.filter(d => highlightedCategories.includes(getAwardedStatus(d)));
+                }
+                updateChart(displayData);
+
+                d3.select('#my_scatter')
+                    .datum(displayData)
+                    .call(chart);
+            };
+
+            // Event listeners for controls
+            d3.select('#color-mode-select').on('change', (event) => {
+                colorMode = event.target.value;
+                console.log("Color mode changed to:", colorMode);
+
+                if (colorMode !== 'direct sponsor') {
+                    highlightedCategories = [];
+                }
+
+                updateChart(data);
+                updateLegend(data, colorMode, getSponsorCategory, getAwardedStatus, colorScale, amountColorScale, amountExtent, highlightedCategories, toggleCategoryHighlight);
+                render();
+            });
+
+            const zoom = fc.zoom().on('zoom', render);
+
+            d3.select('#my_scatter').call(zoom, x, y);
+            
+            // Initial rendering
+            updateChart(data);
+            updateLegend(data, colorMode, getSponsorCategory, getAwardedStatus, colorScale, amountColorScale, amountExtent, highlightedCategories, toggleCategoryHighlight);
+            render();
+        });
+    
+    </script>
+
+</body>

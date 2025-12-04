@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+
+<meta charset="utf-t">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<html>
+
+<head>
+    <title>about</title>
+    <link href='https://fonts.googleapis.com/css?family=Inria+Serif' rel='stylesheet'>
+
+</head>
+<style>
+    body {
+        font-family: 'Inria Serif', sans-serif;
+        background-color: #f9f9f9;
+        color:#002E63;
+    }
+    #logo {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 20px;
+    }
+    #description {
+        max-width: 1000px;
+        margin: 20px auto;
+        padding: 20px;
+        text-align: center;
+    }
+    #buttons {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        display: flex;
+        gap: 30px;
+        margin-right: 40px;
+    }
+    #kdeplot-button:hover {
+        scale: 1.1;
+        background-color: #d6d6d6;
+        transition: background-color 0.3s ease-in-out;
+    }
+    #scatterplot-button:hover {
+        scale: 1.1;
+        background-color: #d6d6d6;
+        transition: background-color 0.3s ease-in-out;
+    }
+    
+</style>
+<body>
+    <div id = "logo">
+        <img src="cdh.png" alt="CDH Logo" width="150px" height=auto>
+    </div>
+    <div id = 'buttons'>
+        <div id = 'kdeplot-button'>
+            <a href = "kdeplot.html" style="text-decoration: none; color: #002E63; font-size: 18px;">
+                <p>kde plot</p>
+            </a>
+        </div>
+        <div id = 'scatterplot-button'>
+            <a href = "scatterplot.html" style="text-decoration: none; color: #002E63; font-size: 18px;">
+                <p>scatterplot</p>
+            </a>
+        </div>
+    </div>
+    <div id = "description">
+        <p>The purpose of this website is to provide insight into research data at the University of Virginia through interactive data visualizations.</p>
+        <p>This project was created by the Connected Data Hub at the University of Virginia under Professor Alex Gates. </p>
+        <p>Data preprocessing by Shen Qianyi.</p>
+        <p>Interactive data and web design by Anna Yao.</p>
+    </div>  
+</body>
+</html>

@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+
+<meta charset="utf-t">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<html>
+
+<head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+    <script src="https://unpkg.com/d3fc"></script>
+    <script src="https://unpkg.com/d3-simple-slider"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-hexbin/0.2.2/d3-hexbin.min.js"></script>
+    <title>KDE Plot</title>
+    <link href='https://fonts.googleapis.com/css?family=Inria+Serif' rel='stylesheet'>
+
+</head>
+<style>
+    html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden; 
+        font-family: 'Inria Serif', sans-serif;
+        background-color: #f9f9f9;
+        font-size: 14px;
+        color:#002E63;
+    }
+    .header p {
+        font-family: 'Inria Serif', sans-serif;
+        font-size: 28px;
+        color: #002E63;
+    }
+    #chart-container {
+        width: 60%;
+        height: 90%;
+    }
+    .card {
+        padding: 0px;
+        min-height:0;
+        width: 100%;
+        font-size: 16px;
+        font-family: 'Inria Serif';
+    }
+    .container {
+        display: flex;
+        height: 100vh;
+        width: 100vw;
+    }
+    #panel {
+        width: 40%;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 10px;
+        box-sizing: border-box;
+    }
+    .tooltip {	
+        position: absolute;			
+        text-align: left;			
+        width: auto;					
+        height: auto;					
+        padding: 10px;				
+        font: 12px 'Inria Serif', sans-serif;		
+        background: white;	
+        border: 1px solid #ccc;		
+        border-radius: 8px;		
+        pointer-events: none;	
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        opacity: 0;
+    }
+    #kde-metric {
+        font-size: 16px;
+        font-family: 'Inria Serif';
+        color:#002E63;
+
+    }
+    #controls p {
+        font-size: 16px;
+        font-family: 'Inria Serif';
+    }
+    #controls p{
+        font-family: 'Inria Serif';
+        margin-right: 30px;
+        font-size: 14px;
+    }
+    #scatterplot-button:hover {
+        scale: 1.1;
+        background-color: #d6d6d6;
+        transition: background-color 0.3s ease-in-out;
+    }
+    #about-button:hover {
+        scale: 1.1;
+        background-color: #d6d6d6;
+        transition: background-color 0.3s ease-in-out;
+    }
+    #kdeplot-button:hover {
+        scale: 1.1;
+        background-color: #d6d6d6;
+        transition: background-color 0.3s ease-in-out;
+    }
+    #header-container {
+        display: flex;
+        justify-content: flex-start;
+        align-items: center;
+        gap: 15px;
+    }
+    #outer-header-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px;
+        margin-right: 20px;
+    }
+    #buttons {
+        display: flex;
+        gap: 40px;
+    }
+    #slider-container p {
+        font-family: 'Inria Serif';
+        font-size: 16px;
+    }
+   
+</style>
+<body>
+    <div id = outer-header-container>
+        <div id = 'header-container'>
+            <div id = "logo">
+                <img src="cdh.png" alt="CDH Logo" width="70px" height="80px">
+            </div>
+            <div class = "header">
+                <h1>uva research insights kde plot</h1>
+            </div>
+        </div>
+        <div id = 'buttons'>
+            <div id = 'kdeplot-button'>
+                <a href = "kdeplot.html" style="text-decoration: none; color: #002E63; font-size: 18px;">
+                    <p>kde plot</p>
+                </a>
+            </div>
+            <div id = 'scatterplot-button'>
+                <a href = "scatterplot.html" style="text-decoration: none; color: #002E63; font-size: 18px;">
+                    <p>scatterplot</p>
+                </a>
+            </div>
+            <div id = 'about-button'>
+                <a href = "about.html" style="text-decoration: none; color: #002E63; font-size: 18px">
+                    <p>about</p>
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class = "container">
+        <div id="chart-container"></div>
+        <div id = "panel">
+            <h2 id = "plot-type"></h2>
+            <div id = "controls" class = "card">
+                <div id = "options">
+                    <div id = "kde-metric-container">
+                        <label for="kde-metric"></label>
+                        <select id="kde-metric">
+                            <option value="density" selected>density of proposals</option>
+                            <option value="hit_rate">hit rate of proposals awarded</option>
+                        </select>
+                    </div>
+                </div>
+                <br>
+                <div id = "slider-container">
+                    <p id = "slider-text"></p>
+                    <div id = "slider"></div>
+                </div>
+                <br>
+                <br>
+                <p>move the sliding bar to toggle kde bandwidth or hexbin radius. change the dropdown menu to visualize different metrics.</p>
+                <p id = "metric-description"></p>
+            </div>
+        </div>
+    </div>
+</body>
+<script>
+    d3.text("proposals_with_embeddings_full_updated.json").then(function(text) {
+        const lines = text.trim().split('\n');
+
+        const data = lines.map(line => {
+            const {umap_x, umap_y, 'HURON Authorized Amount' : HURONAuthorizedAmount} = JSON.parse(line);
+            return {umap_x: +umap_x, umap_y: +umap_y, 'HURON Authorized Amount' : +HURONAuthorizedAmount ?? 0};
+        });
+        console.log(data);
+
+
+        const width = 800;
+        const height = 600;
+
+        const marginTop = 20;
+        const marginRight = 30;
+        const marginBottom = 30;
+        const marginLeft = 40;
+
+        const x = d3.scaleLinear();
+        const y = d3.scaleLinear();
+
+
+        const selected_metric = d3.select("#kde-metric").property("value");
+
+        const bandwidths = [10, 15, 20, 25, 30, 35];
+        const thresholds = [5, 10, 15, 20, 25, 30];
+        const radius = [5, 10, 15, 20, 25, 30];
+
+        x.domain([0, 24]).nice().range([marginLeft, width - marginRight]);
+        y.domain([-5,15]).nice().range([height - marginBottom, marginTop]); 
+
+        const sliderText = d3.select("#slider-text");
+        const metricDescription = d3.select("#metric-description");
+        const plotType = d3.select("#plot-type");
+
+        const tooltip = d3.select("body").append("div").attr("class", "tooltip");
+
+        function drawChart(selected_metric) {
+            d3.select("#chart-container").selectAll("*").remove();
+            d3.select("#slider").selectAll("*").remove();
+
+            let svg = d3.create("svg")
+                .attr("width", width)
+                .attr("height", height)
+                .attr("viewBox", [0, 0, width, height])
+                .attr("style", "max-width: 100%; height: auto;");
+
+            svg.append("g")
+                .attr("transform", `translate(0,${height - marginBottom})`)
+                .call(d3.axisBottom(x)
+                    .tickSizeOuter(0)
+                    .tickFormat(""))
+                //.call(g => g.select(".domain").remove())
+                .call(g => g.select(".tick:last-of-type text").clone()
+                    .attr("y", -3)
+                    .attr("dy", 1)
+                    .attr("font-weight", "bold"))
+                .call(g => g.selectAll(".domain, .tick line")
+                    .attr("stroke", "#808080") 
+                );
+            
+            svg.append("g")
+                .attr("transform", `translate(${marginLeft},0)`)
+                .call(d3.axisLeft(y)
+                    .tickSizeOuter(0)
+                    .tickFormat(""))
+                //.call(g => g.select(".domain").remove())
+                .call(g => g.select(".tick:last-of-type text").clone()
+                    .attr("x", 3))
+                .call(g => g.selectAll(".domain, .tick line")
+                    .attr("stroke", "#808080") 
+                );
+                
+
+            let slider_svg = d3.select('#slider')
+                    .append('svg')
+                    .attr('width', 400)
+                    .attr('height', 100)
+                    .append('g')
+                    .attr('transform', 'translate(30,30)');
+
+
+            if(selected_metric == "density") {
+                sliderText.text("kde bandwidth:");
+                metricDescription.text("the kde plot visualizes the density of proposals in the space. the darker areas indicate a higher concentration of proposals, while lighter areas indicate a lower concentration. adjusting the bandwidth will change the smoothness of the density estimation.");
+                plotType.text("kde plot");
+
+                let contours = d3.contourDensity()
+                    .x(d => x(d.umap_x))
+                    .y(d => y(d.umap_y))
+                    .size([width, height])
+                    .bandwidth(20)
+                    .thresholds(15)
+                    (data);
+            
+                const color = d3.scaleSequential()
+                    .domain([0, d3.max(contours, d => d.value)])
+                    .interpolator(t => d3.interpolateBlues(0.1 + (0.90 * t))); 
+                
+                const kdeGroup = svg.append("g")
+                    .attr("class", "kde-layer") 
+                    .attr("stroke", "#f9f9f9")     
+                    .attr("stroke-width", 0.5)  
+                    .attr("stroke-linejoin", "round");
+                kdeGroup.selectAll("path")
+                    .data(contours)
+                    .join("path")
+                    .attr("fill", d => color(d.value)) 
+                    .attr("d", d3.geoPath());
+                
+    
+                /*svg.append("g")
+                    .attr("stroke", "#fff")     
+                    .attr("stroke-width", 0.5)  
+                    .attr("stroke-linejoin", "round")
+                    .selectAll()
+                    .data(contours)
+                    .join("path")
+                    .attr("fill", d => color(d.value)) 
+                    .attr("d", d3.geoPath());
+                    */
+                
+                const update_bandwidth = (bandwidth) => {
+                    const new_contours = d3.contourDensity()
+                        .x(d => x(d.umap_x))
+                        .y(d => y(d.umap_y))
+                        .size([width, height])
+                        .bandwidth(bandwidth)
+                        .thresholds(15)
+                        (data);
+
+                    kdeGroup.selectAll("path")
+                        .data(new_contours)
+                        .join("path")
+                        .attr("fill", d => color(d.value)) 
+                        .attr("d", d3.geoPath());
+                    /*svg.selectAll("path")
+                        .data(new_contours)
+                        .join("path")
+                        .attr("fill", d => color(d.value)) 
+                        .attr("d", d3.geoPath());*/
+                };
+                const slider = d3.sliderHorizontal()
+                    .min(10)
+                    .max(35)
+                    .step(1)
+                    .tickValues(bandwidths)
+                    .width(300)
+                    .value(20)
+                    .on('onchange', val => update_bandwidth(val));
+
+                slider_svg.call(slider);
+            }
+            else if (selected_metric == "hit_rate") {
+                sliderText.text("hexbin radius:");
+                metricDescription.text("the hexbin plot visualizes the hit rate, or percent of proposals awarded in each hexagon space. each hexagon's color intensity represents the hit rate, with darker colors indicating a higher hit rate (more awarded proposals). adjusting the radius will change the size of the hexagons, affecting how many proposals are aggregated into each hexagon. hover over each hexagon to see the hit rate, total proposals, and awarded proposals.");
+                plotType.text("hexbin plot");
+
+                let hexbin = d3.hexbin()
+                    .x(d => x(d.umap_x))
+                    .y(d => y(d.umap_y))
+                    .radius(15)
+                    .extent([[marginLeft, marginTop], [width - marginRight, height - marginBottom]]);
+
+                let bins = hexbin(data);
+                function compute_hit_rate(bin) {
+                    const total = bin.length;
+                    const awarded = bin.filter(d => d['HURON Authorized Amount'] > 0).length;
+                    return (total === 0) ? 0 : awarded / total;
+                }
+                for (const bin of bins) {
+                    bin.hit_rate = compute_hit_rate(bin);
+                }
+                const hitRateColor = d3.scaleSequential()
+                    .domain([0, 1])
+                    .interpolator(t => d3.interpolateBlues(0.15 + (0.85 * t)));
+
+                const hexGroup = svg.append("g")
+                    .attr("class", "hexagon-group") 
+                    .attr("stroke", "#f9f9f9")
+                    .attr("stroke-width", 0.5);
+
+                hexGroup.selectAll("path")
+                    .data(bins)
+                    .join("path")
+                        .attr("d", hexbin.hexagon())
+                        .attr("transform", d => `translate(${d.x},${d.y})`)
+                        .attr("fill", d => hitRateColor(d.hit_rate))
+                        .on("mouseover", (event, d) => {
+                            tooltip.transition()
+                                .duration(100)
+                                .style("opacity", 0.9);
+                            tooltip.html(`Hit Rate: ${(d.hit_rate * 100).toFixed(2)}%<br>Total Proposals: ${d.length}<br>Awarded Proposals: ${d.filter(p => p['HURON Authorized Amount'] > 0).length}`)
+                                .style("left", (event.pageX + 10) + "px")
+                                .style("top", (event.pageY - 20) + "px");
+                            hexGroup.selectAll("path")
+                                .attr("stroke", d2 => (d2 === d) ? "#000" : "#fff")
+                                .style("cursor", d2 => (d2 === d) ? "pointer" : "default")
+                                .attr("stroke-width", d2 => (d2 === d) ? 1 : 0.5);
+                        })
+                        .on("mouseout", () => {
+                            tooltip.transition()
+                                .duration(300)
+                                .style("opacity", 0);
+                        });
+
+                const update_radius = (radius) => {
+                    const new_hexbin = d3.hexbin()
+                        .x(d => x(d.umap_x))
+                        .y(d => y(d.umap_y))
+                        .radius(radius)
+                        .extent([[marginLeft, marginTop], [width - marginRight, height - marginBottom]]);
+                    
+                    const new_bins = new_hexbin(data);
+
+                    for (const bin of new_bins) {
+                        bin.hit_rate = compute_hit_rate(bin);
+                    }   
+
+                    hexGroup.selectAll("path")
+                        .data(new_bins) 
+                        .join("path")   
+                            .attr("d", new_hexbin.hexagon()) 
+                            .attr("transform", d => `translate(${d.x},${d.y})`)
+                            .attr("fill", d => hitRateColor(d.hit_rate))
+                            .on("mouseover", (event, d) => {
+                            tooltip.transition()
+                                .duration(100)
+                                .style("opacity", 0.9);
+                            tooltip.html(`Hit Rate: ${(d.hit_rate * 100).toFixed(2)}%<br>Total Proposals: ${d.length}<br>Awarded Proposals: ${d.filter(p => p['HURON Authorized Amount'] > 0).length}`)
+                                .style("left", (event.pageX + 10) + "px")
+                                .style("top", (event.pageY - 20) + "px");
+                            hexGroup.selectAll("path")
+                                .attr("stroke", d2 => (d2 === d) ? "#000" : "#fff")
+                                .style("cursor", d2 => (d2 === d) ? "pointer" : "default")
+                                .attr("stroke-width", d2 => (d2 === d) ? 1 : 0.5);
+                        })
+                        .on("mouseout", () => {
+                            tooltip.transition()
+                                .duration(300)
+                                .style("opacity", 0);
+                        });
+                }
+                    
+                const slider_hex = d3.sliderHorizontal()
+                    .min(5)
+                    .max(30)
+                    .step(1)
+                    .tickValues(radius)
+                    .width(300)
+                    .value(15)
+                    .on('onchange', val => update_radius(val));
+
+                slider_svg.call(slider_hex);
+            }
+            d3.select("#chart-container").append(() => svg.node());
+        }
+
+        
+        d3.select("#kde-metric").on("change", function() {
+            drawChart(this.value);
+        })
+        const initial_metric = d3.select("#kde-metric").property("value");
+        drawChart(initial_metric);
+    });
+</script>
+</html>
